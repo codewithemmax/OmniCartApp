@@ -59,7 +59,7 @@ export default async function Home({ searchParams }: PageProps) {
       {/* Sticky Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-orange-100 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <span className="text-2xl font-extrabold text-orange-500 shrink-0">OmniCart</span>
+          <img src="/logo.png" alt="OmniCart" className="h-8 w-auto shrink-0" />
           <div className="flex-1">
             <Suspense>
               <SearchBar />
