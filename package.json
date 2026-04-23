@@ -9,6 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.64",
+    "@ai-sdk/react": "^3.0.170",
+    "ai": "^6.0.168",
     "bcryptjs": "^3.0.3",
     "mongoose": "^9.4.1",
     "next": "16.2.3",

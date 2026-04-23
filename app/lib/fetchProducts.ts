@@ -2,7 +2,6 @@ import { Product } from "./types";
 
 const JUMIA_HOST = "jumia-e-commerce-data-api.p.rapidapi.com";
 const AMAZON_HOST = "real-time-amazon-data.p.rapidapi.com";
-
 const USD_TO_NGN = 1600;
 
 function parsePrice(priceStr?: string | null, currency = "NGN"): number {
@@ -30,18 +29,11 @@ async function fetchJumia(query: string): Promise<Product[]> {
     JUMIA_HOST
   );
   if (!res.ok) return [];
-
   const data = await res.json();
   const items = Array.isArray(data) ? data : [];
-
   return items.slice(0, 10).map((item: {
-    id: string;
-    title: string;
-    price?: string;
-    image?: string;
-    url: string;
-    rating?: number;
-    reviews?: number;
+    id: string; title: string; price?: string;
+    image?: string; url: string; rating?: number; reviews?: number;
   }) => ({
     id: `Jumia-${item.id}`,
     name: item.title,
@@ -62,20 +54,12 @@ async function fetchAmazon(query: string): Promise<Product[]> {
     AMAZON_HOST
   );
   if (!res.ok) return [];
-
   const data = await res.json();
   const items = data.data?.products ?? [];
-
   return items.slice(0, 10).map((item: {
-    asin: string;
-    product_title: string;
-    product_price?: string;
-    currency?: string;
-    product_photo?: string;
-    product_url: string;
-    product_star_rating?: string;
-    product_num_ratings?: number;
-    product_availability?: string;
+    asin: string; product_title: string; product_price?: string;
+    currency?: string; product_photo?: string; product_url: string;
+    product_star_rating?: string; product_num_ratings?: number; product_availability?: string;
   }) => ({
     id: `Amazon-${item.asin}`,
     name: item.product_title,
@@ -92,7 +76,6 @@ async function fetchAmazon(query: string): Promise<Product[]> {
 
 export async function fetchAllProducts(query: string): Promise<Product[]> {
   if (!query.trim()) return [];
-
   const key = process.env.RAPIDAPI_KEY;
   if (!key) return [];
 
@@ -142,9 +125,7 @@ export async function fetchTrending(): Promise<{
 
   const jumia = jumiaResults
     .filter(
-      (
-        r
-      ): r is PromiseFulfilledResult<{ label: string; query: string; products: Product[] }> =>
+      (r): r is PromiseFulfilledResult<{ label: string; query: string; products: Product[] }> =>
         r.status === "fulfilled" &&
         (r.value as { products: Product[] }).products.length > 0
     )
