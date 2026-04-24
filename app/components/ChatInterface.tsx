@@ -17,9 +17,10 @@ interface ChatProduct {
   inStock: boolean;
   url: string;
   image: string;
+  role?: string;
 }
 
-function toChatProduct(p: ChatProduct): Product {
+function toChatProduct(p: ChatProduct): Product & { role?: string } {
   return {
     ...p,
     price: typeof p.price === "string" ? parseFloat(p.price.replace(/[^0-9.]/g, "")) || 0 : p.price,
@@ -50,10 +51,10 @@ export default function ChatInterface() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — move up on mobile so it clears bottom nav */}
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-orange-500 hover:bg-orange-600 text-white rounded-full shadow-lg flex items-center justify-center transition"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-14 sm:h-14 bg-orange-500 hover:bg-orange-600 text-white rounded-full shadow-lg flex items-center justify-center transition"
         aria-label="Open shopping assistant"
       >
         {open ? (
@@ -87,9 +88,9 @@ export default function ChatInterface() {
         )}
       </button>
 
-      {/* Chat panel */}
+      {/* Chat panel — full screen on mobile, fixed panel on sm+ */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[370px] max-h-[600px] flex flex-col bg-white rounded-2xl shadow-2xl border border-orange-100 overflow-hidden">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 z-50 sm:w-[370px] sm:max-h-[600px] flex flex-col bg-white sm:rounded-2xl shadow-2xl border-0 sm:border border-orange-100 overflow-hidden">
           {/* Header */}
           <div className="bg-orange-500 px-4 py-3 flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
@@ -144,7 +145,7 @@ export default function ChatInterface() {
                 .join("");
 
               // Extract products from tool output parts
-              const products: Product[] = [];
+              const products: (Product & { role?: string })[] = [];
               if (!isUser) {
                 for (const part of m.parts) {
                   if (
@@ -164,20 +165,44 @@ export default function ChatInterface() {
                   <div className={`max-w-[90%] space-y-3 flex flex-col ${isUser ? "items-end" : "items-start"}`}>
                     {textContent && (
                       <div
-                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                        className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
                           isUser
                             ? "bg-orange-500 text-white rounded-br-sm"
                             : "bg-white text-gray-800 border border-orange-100 rounded-bl-sm shadow-sm"
                         }`}
                       >
-                        {textContent}
+                        {textContent.split("\n").map((line, i) => {
+                          const isBullet = line.trim().startsWith("•");
+                          return (
+                            <p
+                              key={i}
+                              className={`${
+                                isBullet ? "mt-1.5 pl-1" : i > 0 ? "mt-1" : ""
+                              } ${isBullet && !isUser ? "text-gray-700" : ""}`}
+                            >
+                              {isBullet && !isUser ? (
+                                <>
+                                  <span className="text-orange-500 font-bold">•</span>
+                                  {line.slice(1)}
+                                </>
+                              ) : line}
+                            </p>
+                          );
+                        })}
                       </div>
                     )}
 
                     {!isUser && products.length > 0 && (
                       <div className="grid grid-cols-2 gap-2 w-full">
                         {products.map((p) => (
-                          <ProductCard key={p.id} product={p} />
+                          <div key={p.id} className="flex flex-col gap-1">
+                            {p.role && (
+                              <span className="text-[10px] font-bold text-orange-500 uppercase tracking-wide px-1">
+                                {p.role}
+                              </span>
+                            )}
+                            <ProductCard product={p} />
+                          </div>
                         ))}
                       </div>
                     )}

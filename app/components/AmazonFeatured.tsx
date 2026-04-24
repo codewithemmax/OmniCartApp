@@ -25,19 +25,19 @@ export default function AmazonFeatured({ products }: { products: Product[] }) {
       </div>
 
       {/* Hero card + side grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Large hero card */}
         <a
           href={hero.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="lg:col-span-1 bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition group"
+          className="md:col-span-1 bg-gradient-to-br from-yellow-50 to-orange-50 border border-yellow-200 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition group"
         >
           <div className="relative">
             <img
               src={hero.image}
               alt={hero.name}
-              className="w-full h-64 object-contain p-4 bg-white"
+              className="w-full h-48 sm:h-64 object-contain p-4 bg-white"
             />
             <span className="absolute top-3 left-3 bg-yellow-400 text-yellow-900 text-[10px] px-2 py-1 rounded-full font-extrabold uppercase">
               Amazon
@@ -61,7 +61,7 @@ export default function AmazonFeatured({ products }: { products: Product[] }) {
         </a>
 
         {/* Smaller cards grid */}
-        <div className="lg:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-3 gap-3">
           {rest.slice(0, 6).map((product) => (
             <a
               key={product.id}

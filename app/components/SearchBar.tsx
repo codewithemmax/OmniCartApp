@@ -27,13 +27,13 @@ export default function SearchBar() {
       <input
         name="q"
         defaultValue={params.get("q") ?? ""}
-        placeholder="Search across Jumia, Konga & Temu…"
-        className="flex-1 px-4 py-3 rounded-xl border border-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-400 text-gray-800 bg-white shadow-sm"
+        placeholder="Search Jumia & Amazon…"
+        className="flex-1 min-w-0 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl border border-orange-200 focus:outline-none focus:ring-2 focus:ring-orange-400 text-gray-800 bg-white shadow-sm text-sm sm:text-base"
       />
       <button
         type="submit"
         disabled={isPending}
-        className="px-6 py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 transition disabled:opacity-60"
+        className="shrink-0 px-4 sm:px-6 py-2.5 sm:py-3 bg-orange-500 text-white font-semibold rounded-xl hover:bg-orange-600 transition disabled:opacity-60 text-sm sm:text-base"
       >
         {isPending ? "…" : "Search"}
       </button>

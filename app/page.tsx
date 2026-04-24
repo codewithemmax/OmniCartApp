@@ -58,9 +58,9 @@ export default async function Home({ searchParams }: PageProps) {
     <div className="min-h-screen bg-white">
       {/* Sticky Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-orange-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
-          <span className="text-2xl font-extrabold text-orange-500 shrink-0">OmniCart</span>
-          <div className="flex-1">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-4">
+          <span className="text-lg sm:text-2xl font-extrabold text-orange-500 shrink-0">OmniCart</span>
+          <div className="flex-1 min-w-0">
             <Suspense>
               <SearchBar />
             </Suspense>
@@ -69,23 +69,24 @@ export default async function Home({ searchParams }: PageProps) {
           {isAdmin && (
             <a
               href="/admin"
-              className="shrink-0 px-3 py-1.5 text-xs font-bold text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 transition"
+              className="shrink-0 px-2 py-1.5 sm:px-3 text-xs font-bold text-orange-600 border border-orange-300 rounded-lg hover:bg-orange-50 transition"
             >
-              📊 Admin
+              <span className="hidden sm:inline">📊 Admin</span>
+              <span className="sm:hidden">📊</span>
             </a>
           )}
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-6 sm:space-y-8">
         {!isSearch ? (
           <>
             {/* Hero */}
-            <div className="text-center py-8 space-y-2">
-              <h1 className="text-3xl font-extrabold text-gray-800">
+            <div className="text-center py-6 sm:py-8 space-y-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800">
                 Shop smarter across <span className="text-orange-500">Jumia & Amazon</span>
               </h1>
-              <p className="text-gray-400 max-w-md mx-auto">
+              <p className="text-gray-400 text-sm sm:text-base max-w-md mx-auto">
                 Compare prices, ratings and delivery times — all in one search.
               </p>
             </div>

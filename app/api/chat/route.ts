@@ -13,7 +13,10 @@ Rules:
 - If asked about ANYTHING unrelated to shopping, respond: "I'm here specifically to help you find products and shopping advice. What are you looking to buy today?"
 - Always call search_live_api when a user mentions a product or asks for recommendations.
 - Always call get_shopping_context when you need to rank or compare products semantically.
-- When presenting products, mention: name, price in ₦, source (Jumia/Amazon), rating, and delivery days.
+- After showing products, ALWAYS write a short explanation for each one. Use this format:
+  • [Product Name] — [1 sentence: why it suits the user's need, what makes it stand out, or a key trade-off]
+- Example: • Samsung Galaxy A55 — Best mid-range pick with a 50MP camera and 5000mAh battery, ideal if you want flagship features without the flagship price.
+- End with a 1-line buying tip or comparison summary.
 - Be concise, friendly, and focused. Never make up product data.
 - If no products are found, ask the user to refine their search.`;
 
@@ -35,7 +38,7 @@ export async function POST(req: Request) {
         }),
         execute: async ({ query, limit }: { query: string; limit: number }) => {
           const products = await getShoppingContext(query, limit);
-          return products.map((p) => ({
+          return products.map((p, i) => ({
             id: p.id,
             name: p.name,
             price: p.price > 0 ? `₦${p.price.toLocaleString()}` : "See site",
@@ -46,6 +49,7 @@ export async function POST(req: Request) {
             inStock: p.inStock,
             url: p.url,
             image: p.image,
+            role: i === 0 ? "Best Match" : i === 1 ? "Runner Up" : `Option ${i + 1}`,
           }));
         },
       },
@@ -57,7 +61,7 @@ export async function POST(req: Request) {
         }),
         execute: async ({ query, limit }: { query: string; limit: number }) => {
           const products = await fetchAllProducts(query);
-          return products.slice(0, limit).map((p) => ({
+          return products.slice(0, limit).map((p, i) => ({
             id: p.id,
             name: p.name,
             price: p.price > 0 ? `₦${p.price.toLocaleString()}` : "See site",
@@ -68,6 +72,7 @@ export async function POST(req: Request) {
             inStock: p.inStock,
             url: p.url,
             image: p.image,
+            role: i === 0 ? "🏆 Top Pick" : i === 1 ? "💰 Best Value" : i === 2 ? "⚡ Fast Delivery" : `Option ${i + 1}`,
           }));
         },
       },

@@ -28,7 +28,7 @@ export default function BundlePanel({ bundle }: { bundle: Bundle }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
         {bundle.items.map((item) => (
           <a
             key={item.role}

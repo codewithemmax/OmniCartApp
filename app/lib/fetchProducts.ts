@@ -19,7 +19,7 @@ async function rapidFetch(url: string, host: string): Promise<Response> {
       "x-rapidapi-key": key,
       "x-rapidapi-host": host,
     },
-    next: { revalidate: 300 },
+    cache: "no-store",
   });
 }
 
@@ -74,6 +74,15 @@ async function fetchAmazon(query: string): Promise<Product[]> {
   }));
 }
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export async function fetchAllProducts(query: string): Promise<Product[]> {
   if (!query.trim()) return [];
   const key = process.env.RAPIDAPI_KEY;
@@ -89,13 +98,11 @@ export async function fetchAllProducts(query: string): Promise<Product[]> {
     if (r.status === "fulfilled") all.push(...r.value);
   }
 
-  return all.sort((a, b) => {
-    if (a.source === "Amazon" && b.source !== "Amazon") return -1;
-    if (b.source === "Amazon" && a.source !== "Amazon") return 1;
-    if (a.price === 0) return 1;
-    if (b.price === 0) return -1;
-    return a.price - b.price;
-  });
+  // Amazon first, then shuffle within each source group so order varies per search
+  const amazon = shuffle(all.filter((p) => p.source === "Amazon"));
+  const jumia = shuffle(all.filter((p) => p.source !== "Amazon"));
+
+  return [...amazon, ...jumia].filter((p) => p.price > 0 || p.inStock);
 }
 
 const TRENDING_CATEGORIES = [
@@ -121,7 +128,9 @@ export async function fetchTrending(): Promise<{
   ]);
 
   const amazon =
-    amazonResult.status === "fulfilled" ? (amazonResult.value as Product[]).slice(0, 8) : [];
+    amazonResult.status === "fulfilled"
+      ? shuffle(amazonResult.value as Product[]).slice(0, 8)
+      : [];
 
   const jumia = jumiaResults
     .filter(
@@ -129,7 +138,10 @@ export async function fetchTrending(): Promise<{
         r.status === "fulfilled" &&
         (r.value as { products: Product[] }).products.length > 0
     )
-    .map((r) => r.value as { label: string; query: string; products: Product[] });
+    .map((r) => {
+      const section = r.value as { label: string; query: string; products: Product[] };
+      return { ...section, products: shuffle(section.products).slice(0, 6) };
+    });
 
   return { amazon, jumia };
 }
