@@ -22,7 +22,7 @@ function scoreRelevance(product: Product, query: string): number {
   // Review volume boost (log scale)
   score += Math.min(Math.log10(product.reviewCount + 1) / 5, 0.1);
 
-  // Amazon slight boost (more review data)
+  // Slight boost for sources with more review data
   if (product.source === "Amazon") score += 0.05;
 
   return score;

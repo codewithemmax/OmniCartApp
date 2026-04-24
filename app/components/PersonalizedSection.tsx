@@ -1,6 +1,10 @@
 import { RecommendedSection } from "../lib/recommendations";
 import ProductGrid from "./ProductGrid";
 
+const sourceColors: Record<string, string> = {
+  Amazon: "bg-yellow-400 text-yellow-900",
+};
+
 export default function PersonalizedSection({
   sections,
   userName,
@@ -38,22 +42,36 @@ export default function PersonalizedSection({
       </div>
 
       {/* Product rows per past query */}
-      {sections.map((s) => (
-        <div key={s.query} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-600 capitalize">
-              Because you searched &ldquo;{s.query}&rdquo;
-            </p>
-            <a
-              href={`/?q=${encodeURIComponent(s.query)}`}
-              className="text-xs text-orange-500 font-semibold hover:underline"
-            >
-              See all →
-            </a>
+      {sections.map((s) => {
+        const amazonCount = s.products.filter((p) => p.source === "Amazon").length;
+
+        return (
+          <div key={s.query} className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-semibold text-gray-600 capitalize">
+                  Because you searched &ldquo;{s.query}&rdquo;
+                </p>
+                {/* Source breakdown badges */}
+                <div className="flex gap-1">
+                  {amazonCount > 0 && (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sourceColors.Amazon}`}>
+                      {amazonCount} Amazon
+                    </span>
+                  )}
+                </div>
+              </div>
+              <a
+                href={`/?q=${encodeURIComponent(s.query)}`}
+                className="text-xs text-orange-500 font-semibold hover:underline"
+              >
+                See all →
+              </a>
+            </div>
+            <ProductGrid products={s.products} />
           </div>
-          <ProductGrid products={s.products} />
-        </div>
-      ))}
+        );
+      })}
     </section>
   );
 }

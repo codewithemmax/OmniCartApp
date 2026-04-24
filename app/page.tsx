@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { auth } from "./lib/auth";
-import { fetchAllProducts, fetchTrending } from "./lib/fetchProducts";
+import { fetchAllProducts, fetchTrending, shuffle } from "./lib/fetchProducts";
 import { buildBundle } from "./lib/bundleDetector";
 import { logSearch } from "./lib/searchLogger";
 import { getPersonalizedRecommendations } from "./lib/recommendations";
@@ -28,7 +28,7 @@ export default async function Home({ searchParams }: PageProps) {
 
   const [searchProducts, trending, personalizedSections] = await Promise.all([
     isSearch ? fetchAllProducts(q) : Promise.resolve([]),
-    isSearch ? Promise.resolve({ amazon: [], jumia: [] }) : fetchTrending(),
+    isSearch ? Promise.resolve({ hero: [], sections: [] }) : fetchTrending(),
     !isSearch && session?.user?.id
       ? getPersonalizedRecommendations(session.user.id)
       : Promise.resolve([]),
@@ -84,10 +84,10 @@ export default async function Home({ searchParams }: PageProps) {
             {/* Hero */}
             <div className="text-center py-6 sm:py-8 space-y-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800">
-                Shop smarter across <span className="text-orange-500">Jumia & Amazon</span>
+                Shop smarter on <span className="text-orange-500">Amazon, Jumia, Temu and other marketplace</span>
               </h1>
               <p className="text-gray-400 text-sm sm:text-base max-w-md mx-auto">
-                Compare prices, ratings and delivery times — all in one search.
+                Real-time prices, ratings and delivery times — all in one place.
               </p>
             </div>
 
@@ -100,30 +100,36 @@ export default async function Home({ searchParams }: PageProps) {
             )}
 
             {/* Amazon featured hero */}
-            <AmazonFeatured products={trending.amazon} />
+            <AmazonFeatured products={trending.hero} />
 
-            {/* Divider */}
-            {trending.jumia.length > 0 && (
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-orange-100" />
-                <span className="text-xs font-bold text-orange-400 uppercase tracking-widest">Also on Jumia</span>
-                <div className="flex-1 h-px bg-orange-100" />
-              </div>
-            )}
+            {/* Category sections */}
+            {trending.sections.map((section, i) => (
+              <section key={section.query}>
+                {/* Promo banner every 4 sections */}
+                {i > 0 && i % 4 === 0 && (
+                  <div className="mb-6 rounded-2xl bg-linear-to-r from-orange-500 to-yellow-400 p-5 flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                      <p className="text-white font-extrabold text-lg">Top Deals on Amazon</p>
+                      <p className="text-orange-100 text-sm">Best prices updated in real-time</p>
+                    </div>
+                    <span className="bg-white text-yellow-600 text-xs font-extrabold px-4 py-2 rounded-full">
+                      Shop Amazon →
+                    </span>
+                  </div>
+                )}
 
-            {/* Jumia trending sections */}
-            {trending.jumia.map((section) => (
-              <section key={section.query} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-base font-bold text-gray-700">{section.label}</h2>
-                  <a
-                    href={`/?q=${encodeURIComponent(section.query)}`}
-                    className="text-sm text-orange-500 font-semibold hover:underline"
-                  >
-                    See all →
-                  </a>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-base font-bold text-gray-800">{section.label}</h2>
+                    <a
+                      href={`/?q=${encodeURIComponent(section.query)}`}
+                      className="text-sm text-orange-500 font-semibold hover:underline shrink-0"
+                    >
+                      See all →
+                    </a>
+                  </div>
+                  <ProductGrid products={section.products} />
                 </div>
-                <ProductGrid products={section.products} />
               </section>
             ))}
           </>

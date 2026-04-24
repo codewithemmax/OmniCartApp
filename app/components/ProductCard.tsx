@@ -2,10 +2,10 @@ import { Product } from "../lib/types";
 import TrustScore from "./TrustScore";
 
 const badgeColors: Record<Product["source"], string> = {
+  Amazon: "bg-yellow-500",
   Jumia: "bg-orange-500",
   Konga: "bg-purple-600",
   Temu: "bg-red-500",
-  Amazon: "bg-yellow-500",
 };
 
 export default function ProductCard({ product }: { product: Product }) {

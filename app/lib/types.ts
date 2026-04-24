@@ -1,4 +1,4 @@
-export type Source = "Jumia" | "Konga" | "Temu" | "Amazon";
+export type Source = "Amazon" | "Jumia" | "Konga" | "Temu";
 
 export interface Product {
   id: string;
@@ -9,17 +9,17 @@ export interface Product {
   inStock: boolean;
   deliveryDays: number;
   url: string;
-  rating: number;       // 0–5
+  rating: number;
   reviewCount: number;
 }
 
 export interface BundleItem {
-  role: string;         // e.g. "Phone", "Case", "Charger"
+  role: string;
   product: Product;
 }
 
 export interface Bundle {
   items: BundleItem[];
   totalPrice: number;
-  savings: number;      // vs buying each from most expensive source
+  savings: number;
 }
