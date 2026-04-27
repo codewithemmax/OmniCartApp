@@ -5,9 +5,9 @@ import { scrapeAllSites } from "./scraper";
 
 const AMAZON_HOST = "real-time-amazon-data.p.rapidapi.com";
 const USD_TO_NGN = 1600;
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function parsePrice(priceStr?: string | null): number {
   if (!priceStr) return 0;
@@ -26,23 +26,17 @@ export function shuffle<T>(arr: T[]): T[] {
 }
 
 // ─── RapidAPI Rate Limiter ────────────────────────────────────────────────────
-// Limits concurrent RapidAPI calls to 2 with a 300ms gap between each
-// so 13 trending calls don't all fire at once and burn quota
 
 const CONCURRENCY = 2;
 const CALL_GAP_MS = 300;
-
 let activeRapidCalls = 0;
 let lastRapidCallTime = 0;
 
 async function rapidAPIQueue<T>(fn: () => Promise<T>): Promise<T> {
-  // Wait until a slot is free
   while (activeRapidCalls >= CONCURRENCY) {
     await new Promise((r) => setTimeout(r, 50));
   }
-  // Enforce minimum gap between calls
-  const now = Date.now();
-  const gap = now - lastRapidCallTime;
+  const gap = Date.now() - lastRapidCallTime;
   if (gap < CALL_GAP_MS) {
     await new Promise((r) => setTimeout(r, CALL_GAP_MS - gap));
   }
@@ -55,30 +49,28 @@ async function rapidAPIQueue<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-// ─── Tier 1: MongoDB Cache ────────────────────────────────────────────────────
+// ─── MongoDB Cache ────────────────────────────────────────────────────────────
 
-async function readCache(query: string): Promise<Product[] | null> {
+async function readCache(cacheKey: string): Promise<Product[] | null> {
   try {
     await connectDB();
     const doc = await ProductCache.findOne({
-      query: query.toLowerCase().trim(),
+      query: cacheKey.toLowerCase().trim(),
     }).lean<{ products: Product[]; lastUpdated: Date }>();
     if (!doc) return null;
     if (Date.now() - new Date(doc.lastUpdated).getTime() > CACHE_TTL_MS) return null;
     const products = doc.products as Product[];
-    // Discard cache that has no Amazon products (stale from old integration)
-    if (!products.some((p) => p.source === "Amazon")) return null;
-    return products;
+    return products.length ? products : null;
   } catch {
     return null;
   }
 }
 
-async function writeCache(query: string, products: Product[]): Promise<void> {
+async function writeCache(cacheKey: string, products: Product[]): Promise<void> {
   try {
     await connectDB();
     await ProductCache.findOneAndUpdate(
-      { query: query.toLowerCase().trim() },
+      { query: cacheKey.toLowerCase().trim() },
       { products, lastUpdated: new Date() },
       { upsert: true, returnDocument: "after" }
     );
@@ -142,78 +134,97 @@ async function fetchAmazon(query: string): Promise<Product[]> {
   });
 }
 
-// ─── Tier 2b: Jumia Scraper (always runs alongside Amazon) ───────────────────
+// ─── Serper.dev Shopping Search ───────────────────────────────────────────────
 
-async function fetchJumia(query: string): Promise<Product[]> {
-  try {
-    const all = await scrapeAllSites(query);
-    // scrapeAllSites returns Jumia + Konga + Temu — keep only Jumia here
-    return all.filter((p) => p.source === "Jumia").slice(0, 5);
-  } catch {
-    return [];
-  }
-}
-
-// ─── Tier 3: Google CSE Fallback ─────────────────────────────────────────────
-
-const GOOGLE_SITES = ["jumia.com.ng", "konga.com", "temu.com"];
-const DELIVERY_DAYS: Record<string, number> = {
-  "jumia.com.ng": 2,
-  "konga.com": 3,
-  "temu.com": 14,
-};
-const SOURCE_MAP: Record<string, Product["source"]> = {
-  "jumia.com.ng": "Jumia",
-  "konga.com": "Konga",
-  "temu.com": "Temu",
+const SERPER_SITE_MAP: Record<string, { source: Product["source"]; deliveryDays: number }> = {
+  "jumia.com.ng": { source: "Jumia", deliveryDays: 2 },
+  "konga.com":    { source: "Konga", deliveryDays: 3 },
+  "temu.com":     { source: "Temu",  deliveryDays: 14 },
 };
 
-function detectSite(link: string): string {
-  for (const site of GOOGLE_SITES) {
-    if (link.includes(site)) return site;
+function detectSerperSource(link: string): { source: Product["source"]; deliveryDays: number } {
+  for (const [domain, meta] of Object.entries(SERPER_SITE_MAP)) {
+    if (link.includes(domain)) return meta;
   }
-  return "jumia.com.ng";
+  return { source: "Jumia", deliveryDays: 2 };
 }
 
-function extractPriceFromSnippet(text: string): number {
-  const match = text.match(/[₦$£€][\s]?([\d,]+(?:\.\d{1,2})?)/);
-  return match ? parseFloat(match[1].replace(/,/g, "")) : 0;
-}
+async function fetchFromSerper(query: string): Promise<Product[]> {
+  const key = process.env.SERPER_API_KEY;
+  if (!key) throw new Error("SERPER_API_KEY not set");
 
-async function fetchFromGoogle(query: string): Promise<Product[]> {
-  const key = process.env.GOOGLE_CSE_KEY;
-  const cx = process.env.GOOGLE_CSE_ID;
-  if (!key || !cx) throw new Error("Google CSE not configured");
+  const res = await fetch("https://google.serper.dev/shopping", {
+    method: "POST",
+    headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      q: `${query} site:jumia.com.ng OR site:konga.com OR site:temu.com`,
+      num: 20,
+      gl: "ng",
+      hl: "en",
+    }),
+    cache: "no-store",
+  });
 
-  const url = new URL("https://www.googleapis.com/customsearch/v1");
-  url.searchParams.set("key", key);
-  url.searchParams.set("cx", cx);
-  url.searchParams.set("q", `${query} (${GOOGLE_SITES.map((s) => `site:${s}`).join(" OR ")})`);
-  url.searchParams.set("num", "10");
-
-  const res = await fetch(url.toString(), { cache: "no-store" });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Serper HTTP ${res.status}`);
 
   const data = await res.json();
-  return (data.items ?? []).map((item: {
-    title: string; link: string; snippet: string;
-    pagemap?: { cse_image?: { src: string }[] };
-  }, i: number) => {
-    const site = detectSite(item.link);
+  const items: Array<{
+    title: string;
+    link: string;
+    price?: string;
+    imageUrl?: string;
+    rating?: number;
+    ratingCount?: number;
+  }> = data.shopping ?? [];
+
+  return items.map((item, i) => {
+    const { source, deliveryDays } = detectSerperSource(item.link ?? "");
+    const rawPrice = item.price ?? "";
+    const isUSD = rawPrice.startsWith("$");
+    const numericPrice = parseFloat(rawPrice.replace(/[^0-9.]/g, "")) || 0;
+    const price = isUSD ? Math.round(numericPrice * USD_TO_NGN) : numericPrice;
     return {
-      id: `${SOURCE_MAP[site]}-google-${i}-${Date.now()}`,
-      name: item.title.replace(/\s*[-|].*$/, "").trim(),
-      price: extractPriceFromSnippet(item.snippet + " " + item.title),
-      image: item.pagemap?.cse_image?.[0]?.src ??
-        `https://placehold.co/400x300/FF6600/white?text=${SOURCE_MAP[site]}`,
-      source: SOURCE_MAP[site],
+      id: `${source}-serper-${i}-${Date.now()}`,
+      name: item.title,
+      price,
+      image: item.imageUrl ?? `https://placehold.co/400x300/FF6600/white?text=${source}`,
+      source,
       inStock: true,
-      deliveryDays: DELIVERY_DAYS[site],
+      deliveryDays,
       url: item.link,
-      rating: 0,
-      reviewCount: 0,
+      rating: item.rating ?? 0,
+      reviewCount: item.ratingCount ?? 0,
     } as Product;
-  });
+  }).filter((p) => p.price > 0);
+}
+
+// ─── Serper by source — cached separately ────────────────────────────────────
+// Used for dedicated Konga/Temu sections on the homepage
+
+export async function fetchSerperBySource(
+  query: string,
+  source: "Konga" | "Temu" | "Jumia"
+): Promise<Product[]> {
+  const cacheKey = `serper:${source.toLowerCase()}:${query}`;
+
+  const cached = await readCache(cacheKey);
+  if (cached?.length) {
+    console.log(`[cache hit] ${cacheKey} — ${cached.length} products`);
+    return shuffle(cached);
+  }
+
+  try {
+    const all = await fetchFromSerper(query);
+    const filtered = all.filter((p) => p.source === source).slice(0, 10);
+    if (filtered.length) {
+      await writeCache(cacheKey, filtered);
+      console.log(`[cache write] ${cacheKey} — ${filtered.length} products`);
+    }
+    return shuffle(filtered);
+  } catch (err) {
+    console.warn(`[serper] Failed for ${source} "${query}": ${err}`);
+    return [];
+  }
 }
 
 // ─── Main Hybrid Fetch ────────────────────────────────────────────────────────
@@ -228,66 +239,75 @@ export async function fetchAllProducts(query: string): Promise<Product[]> {
     return shuffle(cached);
   }
 
-  // Tier 2 — fetch Amazon + Jumia in parallel
   let amazonProducts: Product[] = [];
   let jumiaProducts: Product[] = [];
-  let rateLimited = false;
+  let kongaProducts: Product[] = [];
+  let temuProducts: Product[] = [];
 
-  const [amazonResult, jumiaResult] = await Promise.allSettled([
+  // Tier 2 — Amazon (RapidAPI) + scraper in parallel
+  const [amazonResult, scraperResult] = await Promise.allSettled([
     fetchAmazon(query),
-    fetchJumia(query),
+    scrapeAllSites(query),
   ]);
 
   if (amazonResult.status === "fulfilled") {
     amazonProducts = amazonResult.value;
   } else {
-    const msg = amazonResult.reason instanceof Error ? amazonResult.reason.message : "";
-    rateLimited = msg.startsWith("RATE_LIMIT");
-    console.warn(`[tier2] Amazon failed for "${query}": ${msg}`);
+    console.warn(`[tier2] Amazon failed for "${query}": ${amazonResult.reason}`);
   }
 
-  if (jumiaResult.status === "fulfilled") {
-    jumiaProducts = jumiaResult.value;
+  if (scraperResult.status === "fulfilled") {
+    jumiaProducts = scraperResult.value.filter((p) => p.source === "Jumia").slice(0, 3);
+    kongaProducts = scraperResult.value.filter((p) => p.source === "Konga").slice(0, 3);
+    temuProducts  = scraperResult.value.filter((p) => p.source === "Temu").slice(0, 3);
   }
 
-  // Tier 3 — Google CSE if Amazon was rate-limited and we have no results
-  if (rateLimited && !amazonProducts.length) {
-    console.warn(`[tier3] Trying Google CSE for "${query}"`);
+  // Tier 3 — Serper if everything empty
+  const hasAny = amazonProducts.length || jumiaProducts.length || kongaProducts.length || temuProducts.length;
+  if (!hasAny) {
+    console.warn(`[tier3] Trying Serper.dev for "${query}"`);
     try {
-      const googleProducts = await fetchFromGoogle(query);
-      // Split Google results by source
-      amazonProducts = googleProducts.filter((p) => p.source === "Amazon");
-      jumiaProducts = [...jumiaProducts, ...googleProducts.filter((p) => p.source !== "Amazon")];
+      const serperProducts = await fetchFromSerper(query);
+      amazonProducts = serperProducts.filter((p) => p.source === "Amazon").slice(0, 3);
+      jumiaProducts  = serperProducts.filter((p) => p.source === "Jumia").slice(0, 3);
+      kongaProducts  = serperProducts.filter((p) => p.source === "Konga").slice(0, 3);
+      temuProducts   = serperProducts.filter((p) => p.source === "Temu").slice(0, 3);
     } catch {
-      console.warn(`[tier3] Google CSE failed for "${query}"`);
+      console.warn(`[tier3] Serper failed for "${query}"`);
     }
   }
 
-  // Tier 4 — full scraper if still nothing
-  if (!amazonProducts.length && !jumiaProducts.length) {
-    console.warn(`[tier4] Full scraper fallback for "${query}"`);
+  // Tier 4 — full scraper last resort
+  const stillEmpty = !amazonProducts.length && !jumiaProducts.length && !kongaProducts.length && !temuProducts.length;
+  if (stillEmpty) {
+    console.warn(`[tier4] Scraper fallback for "${query}"`);
     try {
       const scraped = await scrapeAllSites(query);
-      jumiaProducts = scraped.filter((p) => p.source === "Jumia").slice(0, 5);
+      jumiaProducts = scraped.filter((p) => p.source === "Jumia").slice(0, 3);
+      kongaProducts = scraped.filter((p) => p.source === "Konga").slice(0, 3);
+      temuProducts  = scraped.filter((p) => p.source === "Temu").slice(0, 3);
     } catch {
       console.error(`[tier4] Scraper failed for "${query}"`);
     }
   }
 
-  // Interleave: equal Amazon + Jumia, alternating A-J-A-J...
-  const maxLen = Math.max(amazonProducts.length, jumiaProducts.length);
+  // Interleave Amazon → Jumia → Konga → Temu
+  const buckets = [amazonProducts, jumiaProducts, kongaProducts, temuProducts];
+  const maxLen = Math.max(...buckets.map((b) => b.length), 0);
   const interleaved: Product[] = [];
   for (let i = 0; i < maxLen; i++) {
-    if (amazonProducts[i]) interleaved.push(amazonProducts[i]);
-    if (jumiaProducts[i]) interleaved.push(jumiaProducts[i]);
+    for (const bucket of buckets) {
+      if (bucket[i]) interleaved.push(bucket[i]);
+    }
   }
 
   const valid = interleaved.filter((p) => p.price > 0 || p.inStock);
 
   if (valid.length) {
-    const aCount = valid.filter((p) => p.source === "Amazon").length;
-    const jCount = valid.filter((p) => p.source === "Jumia").length;
-    console.log(`[cache write] "${query}" — ${aCount} Amazon + ${jCount} Jumia`);
+    const counts = ["Amazon", "Jumia", "Konga", "Temu"]
+      .map((s) => `${valid.filter((p) => p.source === s).length} ${s}`)
+      .join(" + ");
+    console.log(`[cache write] "${query}" — ${counts}`);
     await writeCache(query, valid);
   }
 
@@ -295,7 +315,6 @@ export async function fetchAllProducts(query: string): Promise<Product[]> {
 }
 
 // ─── Trending ─────────────────────────────────────────────────────────────────
-// Stagger category fetches in batches of 3 to avoid hammering RapidAPI
 
 const TRENDING_CATEGORIES = [
   { label: "📱 Smartphones", query: "smartphone" },
@@ -310,6 +329,16 @@ const TRENDING_CATEGORIES = [
   { label: "💄 Beauty & Skincare", query: "skincare" },
   { label: "🎮 Gaming", query: "gaming accessories" },
   { label: "🧸 Toys & Kids", query: "kids toys" },
+];
+
+// Konga and Temu use dedicated Serper queries for their homepage sections
+const KONGA_TEMU_CATEGORIES = [
+  { label: "📱 Phones on Konga", query: "smartphone", source: "Konga" as const },
+  { label: "💻 Laptops on Konga", query: "laptop", source: "Konga" as const },
+  { label: "🏠 Home on Konga", query: "home appliances", source: "Konga" as const },
+  { label: "📱 Phones on Temu", query: "smartphone", source: "Temu" as const },
+  { label: "👗 Fashion on Temu", query: "fashion clothing", source: "Temu" as const },
+  { label: "🎮 Gaming on Temu", query: "gaming accessories", source: "Temu" as const },
 ];
 
 const BATCH_SIZE = 3;
@@ -332,14 +361,17 @@ async function fetchInBatches<T>(
   return results;
 }
 
-export async function fetchTrending(): Promise<{
+export interface TrendingResult {
   hero: Product[];
   sections: { label: string; query: string; products: Product[] }[];
-}> {
-  // Hero fetched first, then categories in batches
+  kongaTemu: { label: string; query: string; source: "Konga" | "Temu"; products: Product[] }[];
+}
+
+export async function fetchTrending(): Promise<TrendingResult> {
+  // Hero + main categories + Konga/Temu sections all in batches
   const heroProducts = await fetchAllProducts("best sellers").catch(() => []);
 
-  const categoryTasks = TRENDING_CATEGORIES.map(
+  const mainTasks = TRENDING_CATEGORIES.map(
     (cat) => () =>
       fetchAllProducts(cat.query).then((products) => ({
         ...cat,
@@ -347,16 +379,36 @@ export async function fetchTrending(): Promise<{
       }))
   );
 
-  const categoryResults = await fetchInBatches(categoryTasks, BATCH_SIZE, BATCH_DELAY_MS);
+  const kongaTemuTasks = KONGA_TEMU_CATEGORIES.map(
+    (cat) => () =>
+      fetchSerperBySource(cat.query, cat.source).then((products) => ({
+        ...cat,
+        products: shuffle(products).slice(0, 8),
+      }))
+  );
+
+  const [mainResults, kongaTemuResults] = await Promise.all([
+    fetchInBatches(mainTasks, BATCH_SIZE, BATCH_DELAY_MS),
+    fetchInBatches(kongaTemuTasks, BATCH_SIZE, BATCH_DELAY_MS),
+  ]);
 
   const hero = shuffle(heroProducts).slice(0, 8);
 
-  const sections = categoryResults
+  const sections = mainResults
     .filter(
       (r): r is PromiseFulfilledResult<{ label: string; query: string; products: Product[] }> =>
         r.status === "fulfilled" && r.value.products.length > 0
     )
     .map((r) => r.value);
 
-  return { hero, sections };
+  const kongaTemu = kongaTemuResults
+    .filter(
+      (r): r is PromiseFulfilledResult<{
+        label: string; query: string;
+        source: "Konga" | "Temu"; products: Product[];
+      }> => r.status === "fulfilled" && r.value.products.length > 0
+    )
+    .map((r) => r.value);
+
+  return { hero, sections, kongaTemu };
 }

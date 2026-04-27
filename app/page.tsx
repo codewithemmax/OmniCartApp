@@ -28,7 +28,7 @@ export default async function Home({ searchParams }: PageProps) {
 
   const [searchProducts, trending, personalizedSections] = await Promise.all([
     isSearch ? fetchAllProducts(q) : Promise.resolve([]),
-    isSearch ? Promise.resolve({ hero: [], sections: [] }) : fetchTrending(),
+    isSearch ? Promise.resolve({ hero: [], sections: [], kongaTemu: [] }) : fetchTrending(),
     !isSearch && session?.user?.id
       ? getPersonalizedRecommendations(session.user.id)
       : Promise.resolve([]),
@@ -102,36 +102,77 @@ export default async function Home({ searchParams }: PageProps) {
             {/* Amazon featured hero */}
             <AmazonFeatured products={trending.hero} />
 
-            {/* Category sections */}
+            {/* Category sections — Amazon + Jumia interleaved */}
             {trending.sections.map((section, i) => (
               <section key={section.query}>
-                {/* Promo banner every 4 sections */}
                 {i > 0 && i % 4 === 0 && (
-                  <div className="mb-6 rounded-2xl bg-linear-to-r from-orange-500 to-yellow-400 p-5 flex items-center justify-between flex-wrap gap-3">
+                  <div className="mb-6 rounded-2xl bg-gradient-to-r from-orange-500 to-yellow-400 p-5 flex items-center justify-between flex-wrap gap-3">
                     <div>
-                      <p className="text-white font-extrabold text-lg">Top Deals on Amazon</p>
-                      <p className="text-orange-100 text-sm">Best prices updated in real-time</p>
+                      <p className="text-white font-extrabold text-lg">Top Deals Across Platforms</p>
+                      <p className="text-orange-100 text-sm">Amazon · Jumia · Konga · Temu — updated daily</p>
                     </div>
-                    <span className="bg-white text-yellow-600 text-xs font-extrabold px-4 py-2 rounded-full">
-                      Shop Amazon →
-                    </span>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {["Amazon","Jumia","Konga","Temu"].map((s) => (
+                        <span key={s} className="bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full">{s}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
-
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <h2 className="text-base font-bold text-gray-800">{section.label}</h2>
-                    <a
-                      href={`/?q=${encodeURIComponent(section.query)}`}
-                      className="text-sm text-orange-500 font-semibold hover:underline shrink-0"
-                    >
-                      See all →
-                    </a>
+                    <a href={`/?q=${encodeURIComponent(section.query)}`} className="text-sm text-orange-500 font-semibold hover:underline shrink-0">See all →</a>
                   </div>
                   <ProductGrid products={section.products} />
                 </div>
               </section>
             ))}
+
+            {/* Konga sections */}
+            {trending.kongaTemu.filter((s) => s.source === "Konga").length > 0 && (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-purple-100" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="bg-purple-600 text-white text-xs font-extrabold px-3 py-1 rounded-full">Konga</span>
+                    <span className="text-sm font-bold text-gray-700">Deals on Konga</span>
+                  </div>
+                  <div className="flex-1 h-px bg-purple-100" />
+                </div>
+                {trending.kongaTemu.filter((s) => s.source === "Konga").map((section) => (
+                  <section key={`konga-${section.query}`} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-bold text-gray-700">{section.label}</h2>
+                      <a href={`/?q=${encodeURIComponent(section.query)}`} className="text-sm text-purple-500 font-semibold hover:underline shrink-0">See all →</a>
+                    </div>
+                    <ProductGrid products={section.products} />
+                  </section>
+                ))}
+              </>
+            )}
+
+            {/* Temu sections */}
+            {trending.kongaTemu.filter((s) => s.source === "Temu").length > 0 && (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-red-100" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="bg-red-500 text-white text-xs font-extrabold px-3 py-1 rounded-full">Temu</span>
+                    <span className="text-sm font-bold text-gray-700">Deals on Temu</span>
+                  </div>
+                  <div className="flex-1 h-px bg-red-100" />
+                </div>
+                {trending.kongaTemu.filter((s) => s.source === "Temu").map((section) => (
+                  <section key={`temu-${section.query}`} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-base font-bold text-gray-700">{section.label}</h2>
+                      <a href={`/?q=${encodeURIComponent(section.query)}`} className="text-sm text-red-500 font-semibold hover:underline shrink-0">See all →</a>
+                    </div>
+                    <ProductGrid products={section.products} />
+                  </section>
+                ))}
+              </>
+            )}
           </>
         ) : (
           <>
