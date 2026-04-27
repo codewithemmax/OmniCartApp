@@ -82,7 +82,7 @@ export default async function Home({ searchParams }: PageProps) {
         {!isSearch ? (
           <>
             {/* Hero */}
-            <div className="text-center py-6 sm:py-8 space-y-2">
+            <div className="text-cent er py-6 sm:py-8 space-y-2">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-800">
                 Shop smarter on <span className="text-orange-500">Amazon, Jumia, Temu and other marketplace</span>
               </h1>
